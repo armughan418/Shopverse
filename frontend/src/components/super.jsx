@@ -10,17 +10,11 @@ function Super() {
     const getRouteAccess = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem("authToken");
-        if (!token) {
-          setIsAuth(false);
-          return;
-        }
-
         const response = await fetch(api().getAcess, {
           method: "GET",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
         });
 

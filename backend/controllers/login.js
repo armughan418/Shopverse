@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const login = async (req, res) => {
-  const { email, password, role } = req.body;
+  const { email, password } = req.body;
 
   try {
     if (!email || !password) {
@@ -23,13 +23,6 @@ const login = async (req, res) => {
       });
     }
 
-    if (role && role !== user.role) {
-      return res.status(403).json({
-        status: false,
-        message: "Invalid role selected",
-      });
-    }
-
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
     if (!isPasswordCorrect) {
       return res.status(401).json({
@@ -46,17 +39,15 @@ const login = async (req, res) => {
         isAdmin: user.role === "admin",
       },
       process.env.ACCESS_TOKEN_KEY,
-      { expiresIn: "7d" }
+      { expiresIn: "7d" },
     );
 
-    if (user.role === "user") {
-      res.cookie("token", accessToken, {
-        httpOnly: true,
-        sameSite: "strict",
-        secure: process.env.NODE_ENV === "production",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
-    }
+    res.cookie("token", accessToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     res.status(200).json({
       status: true,

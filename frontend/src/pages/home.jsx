@@ -1,178 +1,125 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import Footer from "../components/footer";
 import Carousel from "../components/caroseul";
 import api from "../utils/api";
 import axios from "axios";
 import { toast } from "react-toastify";
-import StarRating from "../components/StarRating";
+import { useLanguage } from "../utils/LanguageContext";
+import ProductCard from "../components/ProductCard";
+import ProductGridSkeleton from "../components/ProductGridSkeleton";
 
 export default function Home() {
-  const [products, setProducts] = useState([]);
+  const [featured, setFeatured] = useState([]);
+  const [bestsellers, setBestsellers] = useState([]);
+  const [newArrivals, setNewArrivals] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
-  // Fetch products and their ratings
-  const fetchProducts = async () => {
+  const fetchHomeSections = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await axios.get(api().getProducts);
+      const res = await axios.get(api().getHomepageProducts);
       if (res.data?.status) {
-        const productsList = res.data.products || [];
-
-        // Fetch reviews for each product to calculate avgRating
-        const productsWithRating = await Promise.all(
-          productsList.map(async (product) => {
-            try {
-              const reviewsRes = await axios.get(api().getReviews(product._id));
-              const reviews = reviewsRes.data?.reviews || [];
-              const avgRating =
-                reviews.length > 0
-                  ? reviews.reduce((sum, r) => sum + r.rating, 0) /
-                    reviews.length
-                  : 0;
-              return { ...product, avgRating };
-            } catch {
-              return { ...product, avgRating: 0 };
-            }
-          })
-        );
-
-        setProducts(productsWithRating);
-      } else {
-        toast.error(res.data.message || "Failed to fetch products");
+        setFeatured(res.data.featured || []);
+        setBestsellers(res.data.bestsellers || []);
+        setNewArrivals(res.data.newArrivals || []);
       }
-    } catch (err) {
-      toast.error("Failed to fetch products");
+    } catch {
+      toast.error(t("failedToFetchProducts"));
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    fetchHomeSections();
+  }, [fetchHomeSections]);
 
-  const handleProductClick = (id) => {
-    navigate(`/product/${id}`);
-  };
+  const handleAddToCart = useCallback(
+    async (productId) => {
+      try {
+        const isLoggedIn = !!localStorage.getItem("user");
 
-  const handleAddToCart = async (productId) => {
-    try {
-      const token = localStorage.getItem("authToken");
-      
-      if (!token) {
-        toast.error("Please login to add items to cart");
-        navigate("/login");
-        return;
+        if (!isLoggedIn) {
+          toast.error(t("pleaseLoginToAddToCart"));
+          navigate("/login");
+          return;
+        }
+
+        await axios.post(api().addToCart, { productId, quantity: 1 });
+        toast.success(t("addedToCart"));
+        window.dispatchEvent(new Event("cartUpdated"));
+      } catch (err) {
+        const errorMsg = err.response?.data?.message || t("failedToAddToCart");
+        toast.error(errorMsg);
+
+        if (err.response?.status === 401) {
+          localStorage.removeItem("user");
+          navigate("/login");
+        }
       }
+    },
+    [navigate, t],
+  );
 
-      await axios.post(
-        api().addToCart,
-        { productId, quantity: 1 },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      toast.success("Added to cart");
-      // Dispatch event to update cart count in navbar
-      window.dispatchEvent(new Event('cartUpdated'));
-    } catch (err) {
-      const errorMsg = err.response?.data?.message || "Failed to add to cart";
-      toast.error(errorMsg);
-      
-      // If unauthorized, redirect to login
-      if (err.response?.status === 401) {
-        localStorage.removeItem("authToken");
-        navigate("/login");
-      }
-    }
-  };
+  const renderSection = (title, items, emptyKey) => (
+    <section className="mb-10 sm:mb-14">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
+        <h2 className="text-2xl sm:text-3xl font-bold text-orange-600">{title}</h2>
+        <Link
+          to="/products"
+          className="text-sm font-semibold text-orange-700 hover:text-orange-900 underline-offset-2 hover:underline"
+        >
+          {t("browseAllProducts")}
+        </Link>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-gray-500 text-center py-6">{t(emptyKey)}</p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+          {items.map((product) => (
+            <ProductCard
+              key={`${title}-${product._id}`}
+              product={product}
+              onAddToCart={handleAddToCart}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
 
   if (loading) {
     return (
-      <div className="p-10 text-center text-orange-500 font-bold">
-        Loading...
+      <div className="min-h-screen bg-orange-50">
+        <div className="max-w-6xl mx-auto p-3 sm:p-6 pb-0">
+          <Carousel />
+        </div>
+        <div className="max-w-6xl mx-auto p-3 sm:p-6">
+          <div className="h-8 bg-orange-100 rounded w-48 mb-6 animate-pulse" />
+          <ProductGridSkeleton count={6} />
+          <div className="h-8 bg-orange-100 rounded w-48 mb-6 mt-12 animate-pulse" />
+          <ProductGridSkeleton count={8} />
+          <div className="h-8 bg-orange-100 rounded w-48 mb-6 mt-12 animate-pulse" />
+          <ProductGridSkeleton count={8} />
+        </div>
+        <Footer />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-orange-50">
-      <Carousel />
+      <div className="max-w-6xl mx-auto p-3 sm:p-6 pb-0 sm:pb-0">
+        <Carousel />
+      </div>
 
-      <div className="max-w-6xl mx-auto p-6">
-        <h2 className="text-3xl font-bold text-orange-600 mb-6">
-          Featured Products
-        </h2>
-
-        {products.length === 0 ? (
-          <p className="text-gray-500 text-center">No products found.</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {products.map((product) => (
-              <div
-                key={product._id}
-                className="bg-white rounded-2xl shadow-lg p-4 hover:shadow-xl transition relative flex flex-col"
-              >
-                {/* Clickable image and title to navigate */}
-                <div
-                  onClick={() => handleProductClick(product._id)}
-                  className="cursor-pointer"
-                >
-                  <div className="bg-gray-50 rounded-xl p-4 flex items-center justify-center">
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="h-48 object-contain"
-                    />
-                  </div>
-
-                  <h3 className="font-semibold text-lg mt-3 text-gray-800">
-                    {product.name}
-                  </h3>
-
-                  <p className="text-gray-500 text-sm mt-1 line-clamp-2">
-                    {product.description}
-                  </p>
-
-                  <div className="flex items-center gap-2 mt-2">
-                    <StarRating rating={product.avgRating ?? 0} size={16} />
-                    <span className="text-gray-600 text-sm">
-                      {(product.avgRating ?? 0).toFixed(1)}
-                    </span>
-                  </div>
-
-                  {/* Old Price (if exists) */}
-                  {product.oldPrice && product.oldPrice > product.price && (
-                    <p className="text-gray-400 text-sm line-through">
-                      Rs{" "}
-                      {Number(product.oldPrice).toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </p>
-                  )}
-
-                  {/* Current Price */}
-                  <p className="text-orange-600 font-bold text-xl mt-1">
-                    Rs{" "}
-                    {Number(product.price).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </p>
-                </div>
-
-                {/* Add to Cart Button */}
-                <button
-                  onClick={() => handleAddToCart(product._id)}
-                  className="mt-4 bg-orange-600 hover:bg-orange-700 text-white py-2 px-4 rounded-xl shadow-md font-semibold transition"
-                >
-                  Add to Cart
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="max-w-6xl mx-auto p-3 sm:p-6">
+        {renderSection(t("featuredProducts"), featured, "noProductsFound")}
+        {renderSection(t("bestSellers"), bestsellers, "noProductsFound")}
+        {renderSection(t("newArrivals"), newArrivals, "noProductsFound")}
       </div>
 
       <Footer />

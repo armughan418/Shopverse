@@ -9,26 +9,28 @@ import { toast } from "react-toastify";
 function ManageProducts() {
   const [products, setProducts] = useState([]);
   const navigate = useNavigate();
-  const token = localStorage.getItem("authToken");
 
   const fetchProducts = async () => {
     try {
-      const res = await axios.get(api().getProducts, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.get(api().getProductsPaged(1, 500));
       setProducts(res.data?.products || []);
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to fetch products");
     }
   };
 
+  const getPrimaryMedia = (product) =>
+    Array.isArray(product?.media) && product.media.length > 0
+      ? [...product.media].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))[0]
+      : product?.image
+        ? { url: product.image, type: "image" }
+        : null;
+
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this product?")) return;
 
     try {
-      const res = await axios.delete(api().deleteProduct(id), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.delete(api().deleteProduct(id));
 
       if (res.data.status) {
         toast.success("Product deleted successfully");
@@ -74,10 +76,18 @@ function ManageProducts() {
             {products?.map((p) => (
               <tr key={p._id} className="border-t">
                 <td className="p-4">
-                  <img
-                    src={p.image}
-                    className="w-16 h-16 rounded-lg object-cover"
-                  />
+                  {getPrimaryMedia(p)?.type === "video" ? (
+                    <video
+                      src={getPrimaryMedia(p)?.url}
+                      className="w-16 h-16 rounded-lg object-cover"
+                      muted
+                    />
+                  ) : (
+                    <img
+                      src={getPrimaryMedia(p)?.url || p.image}
+                      className="w-16 h-16 rounded-lg object-cover"
+                    />
+                  )}
                 </td>
                 <td className="p-4">{p.name}</td>
                 <td className="p-4">{p.category}</td>

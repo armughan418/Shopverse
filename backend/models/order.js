@@ -48,6 +48,12 @@ const orderSchema = new mongoose.Schema(
     paymentMethod: { type: String, default: "COD" },
 
     totalPrice: { type: Number, required: true },
+    subtotal: { type: Number, default: 0 },
+    tax: { type: Number, default: 0 },
+    shippingFee: { type: Number, default: 0 },
+    discount: { type: Number, default: 0 },
+    discountPercentage: { type: Number, default: 0 },
+    taxPercentage: { type: Number, default: 10 },
 
     status: {
       type: String,
@@ -71,9 +77,14 @@ const orderSchema = new mongoose.Schema(
       orderShipped: { type: Boolean, default: false },
       orderDelivered: { type: Boolean, default: false },
     },
+
+    // Tracking number for shipped orders
+    trackingNumber: { type: String },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
+
+orderSchema.index({ status: 1, "items.product": 1 });
 
 // Auto add first timeline entry when order is created
 orderSchema.pre("save", function (next) {

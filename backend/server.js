@@ -2,6 +2,8 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const compression = require("compression");
+const rateLimit = require("express-rate-limit");
 const getConnection = require("./utils/getConnection");
 
 const userRoutes = require("./routes/userRoute");
@@ -12,15 +14,27 @@ const adminRoutes = require("./routes/adminRoute");
 const reviewRoute = require("./routes/reviewRoute");
 const cloudinaryRoute = require("./routes/cloudinaryRoute");
 const carouselRoute = require("./routes/carouselRoute");
+const categoryRoute = require("./routes/categoryRoute");
 
 const app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin:
+      process.env.NODE_ENV === "production" ? process.env.frontend_url : true,
     credentials: true,
-  })
+  }),
 );
+
+app.use(compression());
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.API_RATE_LIMIT_MAX) || 400,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api/", apiLimiter);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -34,6 +48,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/reviews", reviewRoute);
 app.use("/api/cloudinary", cloudinaryRoute);
 app.use("/api/carousel", carouselRoute);
+app.use("/api/categories", categoryRoute);
 
 app.get("/", (req, res) => {
   res.json({ message: "Server is running successfully" });

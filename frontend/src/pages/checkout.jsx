@@ -3,6 +3,8 @@ import api from "../utils/api";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+import { useLanguage } from "../utils/LanguageContext";
+import { getLocalizedName } from "../utils/productDisplay";
 
 function Checkout() {
   const [cart, setCart] = useState({ items: [] });
@@ -10,26 +12,26 @@ function Checkout() {
   const [placing, setPlacing] = useState(false);
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
+  const { t, language } = useLanguage();
+
+  const displayOrNotProvided = (value) =>
+    !value || value === "Not provided" ? t("notProvided") : value;
 
   // Fetch cart and user profile
   const fetchCartAndUser = async () => {
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
+      const isLoggedIn = !!localStorage.getItem("user");
+      if (!isLoggedIn) {
         navigate("/login");
         return;
       }
 
       // Fetch cart
-      const cartRes = await axios.get(api().getCart, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const cartRes = await axios.get(api().getCart);
       setCart(cartRes.data?.cart || cartRes.data || { items: [] });
 
       // Fetch user profile
-      const userRes = await axios.get(api().getUserProfile, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const userRes = await axios.get(api().getUserProfile);
 
       if (userRes.data?.status && userRes.data.user) {
         const userData = {
@@ -52,7 +54,7 @@ function Checkout() {
       }
     } catch (err) {
       console.error("Failed to fetch cart or user:", err);
-      toast.error("Failed to load cart or user data");
+      toast.error(t("failedToLoadCartUser"));
 
       const localUser = JSON.parse(localStorage.getItem("user")) || {};
       setUser({
@@ -85,64 +87,58 @@ function Checkout() {
     setPlacing(true);
 
     if ((cart.items || []).length === 0) {
-      toast.error("Your cart is empty");
+      toast.error(t("cartEmptyToast"));
       navigate("/shopping-cart");
       setPlacing(false);
       return;
     }
 
     if (!user || !user.address || user.address === "Not provided" || user.address.trim() === "") {
-      toast.error("Please update your address in profile before placing order");
+      toast.error(t("updateAddressBeforeOrder"));
       navigate("/user-profile");
       setPlacing(false);
       return;
     }
 
     try {
-      const token = localStorage.getItem("authToken");
-
       // Ensure address is not empty
       const address = user.address.trim();
       if (!address || address === "Not provided") {
-        toast.error("Please provide a valid address");
+        toast.error(t("validAddressRequired"));
         setPlacing(false);
         return;
       }
 
-      const res = await axios.post(
-        api().createOrder,
-        {
-          shippingAddress: {
-            address: address,
-            city: "City",
-            postalCode: "00000",
-            country: "Pakistan",
-          },
-          paymentMethod: "COD",
+      const res = await axios.post(api().createOrder, {
+        shippingAddress: {
+          address: address,
+          city: "City",
+          postalCode: "00000",
+          country: "Pakistan",
         },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+        paymentMethod: "COD",
+      });
 
       if (res.data?.order?._id) {
-        toast.success("Order placed successfully");
+        toast.success(t("orderPlacedSuccess"));
         navigate(`/order-summary/${res.data.order._id}`);
       } else {
-        toast.error(res.data?.message || "Failed to place order");
+        toast.error(res.data?.message || t("failedPlaceOrder"));
       }
     } catch (err) {
       console.error(err);
-      toast.error(err.response?.data?.message || "Failed to place order");
+      toast.error(err.response?.data?.message || t("failedPlaceOrder"));
     } finally {
       setPlacing(false);
     }
   };
 
   if (loading)
-    return <p className="p-8 text-center text-gray-500">Loading...</p>;
+    return <p className="p-8 text-center text-gray-500">{t("loading")}</p>;
 
   if (!user)
     return (
-      <p className="p-8 text-center text-gray-500">Loading user details...</p>
+      <p className="p-8 text-center text-gray-500">{t("loadingUserDetails")}</p>
     );
 
   return (
@@ -151,24 +147,26 @@ function Checkout() {
         {/* Customer Details */}
         <div className="bg-white p-6 rounded-2xl shadow-xl border border-orange-200">
           <h2 className="text-2xl font-bold text-orange-600 mb-4">
-            Customer Details
+            {t("customerDetails")}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <p className="font-semibold">Name</p>
-              <p className="text-gray-600">{user.name}</p>
+              <p className="font-semibold">{t("nameField")}</p>
+              <p className="text-gray-600">{displayOrNotProvided(user.name)}</p>
             </div>
             <div>
-              <p className="font-semibold">Email</p>
-              <p className="text-gray-600">{user.email}</p>
+              <p className="font-semibold">{t("email")}</p>
+              <p className="text-gray-600">{displayOrNotProvided(user.email)}</p>
             </div>
             <div>
-              <p className="font-semibold">Phone</p>
-              <p className="text-gray-600">{user.phone}</p>
+              <p className="font-semibold">{t("phoneField")}</p>
+              <p className="text-gray-600">{displayOrNotProvided(user.phone)}</p>
             </div>
             <div>
-              <p className="font-semibold">Address</p>
-              <p className="text-gray-600">{user.address}</p>
+              <p className="font-semibold">{t("addressField")}</p>
+              <p className="text-gray-600">
+                {displayOrNotProvided(user.address)}
+              </p>
             </div>
           </div>
 
@@ -176,14 +174,13 @@ function Checkout() {
             user.address === "Not provided") && (
             <div className="mt-4 p-3 bg-orange-50 rounded-lg border border-orange-200">
               <p className="text-sm text-orange-700 mb-2">
-                ⚠️ Please update your phone number and address in your profile
-                before placing the order.
+                ⚠️ {t("profileIncompleteWarning")}
               </p>
               <button
                 onClick={() => navigate("/user-profile")}
                 className="text-orange-600 hover:text-orange-700 font-semibold underline"
               >
-                Update Profile
+                {t("updateProfile")}
               </button>
             </div>
           )}
@@ -192,7 +189,7 @@ function Checkout() {
         {/* Order Details */}
         <div className="bg-white p-6 rounded-2xl shadow-xl border border-orange-200">
           <h2 className="text-2xl font-bold text-orange-600 mb-4">
-            Order Details
+            {t("orderDetailsHeading")}
           </h2>
           <div className="space-y-3">
             {(cart.items || []).map((it, idx) => (
@@ -202,9 +199,11 @@ function Checkout() {
               >
                 <div>
                   <p className="font-semibold">
-                    {it.product?.name || "Product"}
+                    {getLocalizedName(it.product, language) || t("product")}
                   </p>
-                  <p className="text-sm text-gray-500">Qty: {it.quantity}</p>
+                  <p className="text-sm text-gray-500">
+                    {t("qtyLabel")} {it.quantity}
+                  </p>
                 </div>
                 <p className="font-semibold">
                   Rs{" "}
@@ -221,26 +220,23 @@ function Checkout() {
 
           <div className="mt-4 border-t border-gray-300 pt-4 space-y-2 text-gray-800">
             <div className="flex justify-between">
-              Subtotal: Rs {subtotal.toLocaleString()}
+              {t("subtotal")}: Rs {subtotal.toLocaleString()}
             </div>
             <div className="flex justify-between">
-              Shipping: Rs {shipping.toLocaleString()}
+              {t("shipping")}: Rs {shipping.toLocaleString()}
             </div>
             <div className="flex justify-between">
-              Tax: Rs {tax.toLocaleString()}
+              {t("tax")}: Rs {tax.toLocaleString()}
             </div>
             <div className="flex justify-between font-bold text-lg">
-              Total: Rs {total.toLocaleString()}
+              {t("total")}: Rs {total.toLocaleString()}
             </div>
           </div>
         </div>
 
         {/* Place Order */}
         <div className="bg-white p-6 rounded-2xl shadow-xl border border-orange-200 text-center">
-          <p className="text-gray-700 mb-4">
-            Review your order carefully. Click the button below to place your
-            order.
-          </p>
+          <p className="text-gray-700 mb-4">{t("reviewOrderHint")}</p>
           <button
             onClick={handlePlaceOrder}
             disabled={
@@ -248,7 +244,7 @@ function Checkout() {
             }
             className="w-full py-3 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {placing ? "Placing Order..." : "Place Order"}
+            {placing ? t("placingOrder") : t("placeOrder")}
           </button>
         </div>
       </div>

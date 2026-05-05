@@ -10,7 +10,6 @@ function AddCarousel() {
   const [alt, setAlt] = useState("");
   const [order, setOrder] = useState(0);
   const [loading, setLoading] = useState(false);
-  const token = localStorage.getItem("authToken");
 
   const handleAdd = async () => {
     if (!file) return toast.error("Please select an image to add");
@@ -22,9 +21,7 @@ function AddCarousel() {
       fd.append("alt", alt);
       fd.append("order", order);
 
-      const res = await axios.post(api().addCarouselImage, fd, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.post(api().addCarouselImage, fd);
       if (res.data.success) {
         toast.success("Image added successfully");
         setFile(null);

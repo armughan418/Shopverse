@@ -1,7 +1,9 @@
 const Order = require("../models/order");
 const Cart = require("../models/cart");
 const Product = require("../models/product");
-const sendEmail = require("../utils/sendMail"); // nodemailer helper
+const User = require("../models/user");
+const cache = require("../utils/simpleCache");
+const OrderChargeSetting = require("../models/orderChargeSetting");
 
 // ------------------------------
 // HELPER: CALCULATE SUBTOTAL
@@ -17,15 +19,26 @@ const calculateCartTotals = (cart) => {
 // ------------------------------
 // HELPER: CALCULATE SUMMARY
 // ------------------------------
-const calculateOrderSummary = (subtotal) => {
-  const taxRate = 0.1; // 10%
-  const shippingFee = subtotal > 3000 ? 0 : 250;
-  const discount = subtotal > 5000 ? 500 : 0;
+const calculateOrderSummary = (subtotal, settings) => {
+  const deliveryCost = Number(settings?.deliveryCost || 0);
+  const discountPercentage = Number(settings?.discountPercentage || 0);
+  const taxPercentage = Number(settings?.taxPercentage || 0);
 
-  const tax = subtotal * taxRate;
+  const discount = (subtotal * discountPercentage) / 100;
+  const discountedSubtotal = Math.max(0, subtotal - discount);
+  const tax = (discountedSubtotal * taxPercentage) / 100;
+  const shippingFee = deliveryCost;
   const total = subtotal + tax + shippingFee - discount;
 
-  return { subtotal, tax, shippingFee, discount, total };
+  return {
+    subtotal,
+    tax,
+    shippingFee,
+    discount,
+    total,
+    discountPercentage,
+    taxPercentage,
+  };
 };
 
 // ----------------------------------------------------
@@ -52,17 +65,17 @@ exports.createOrder = async (req, res) => {
 
     // VALIDATE AND SET DEFAULT SHIPPING ADDRESS
     let finalShippingAddress = shippingAddress;
-    
+
     // If shippingAddress is missing or incomplete, get from user profile
-    if (!finalShippingAddress || 
-        !finalShippingAddress.address || 
-        finalShippingAddress.address === "Not provided" ||
-        !finalShippingAddress.city ||
-        !finalShippingAddress.postalCode) {
-      
-      const User = require("../models/user");
+    if (
+      !finalShippingAddress ||
+      !finalShippingAddress.address ||
+      finalShippingAddress.address === "Not provided" ||
+      !finalShippingAddress.city ||
+      !finalShippingAddress.postalCode
+    ) {
       const user = await User.findById(userId);
-      
+
       if (user && user.address && user.address !== "Not provided") {
         finalShippingAddress = {
           address: user.address,
@@ -71,20 +84,23 @@ exports.createOrder = async (req, res) => {
           country: shippingAddress?.country || "Pakistan",
         };
       } else {
-        return res.status(400).json({ 
+        return res.status(400).json({
           status: false,
-          message: "Shipping address is required. Please update your address in profile." 
+          message:
+            "Shipping address is required. Please update your address in profile.",
         });
       }
     }
 
     // Ensure all required fields are present
-    if (!finalShippingAddress.address || 
-        !finalShippingAddress.city || 
-        !finalShippingAddress.postalCode) {
-      return res.status(400).json({ 
+    if (
+      !finalShippingAddress.address ||
+      !finalShippingAddress.city ||
+      !finalShippingAddress.postalCode
+    ) {
+      return res.status(400).json({
         status: false,
-        message: "Shipping address must include address, city, and postal code" 
+        message: "Shipping address must include address, city, and postal code",
       });
     }
 
@@ -94,7 +110,8 @@ exports.createOrder = async (req, res) => {
     }
 
     const subtotal = calculateCartTotals(cart);
-    const summary = calculateOrderSummary(subtotal);
+    const settings = await OrderChargeSetting.findOne({ key: "global" });
+    const summary = calculateOrderSummary(subtotal, settings);
 
     const orderItems = cart.items.map((item) => ({
       product: item.product._id,
@@ -111,6 +128,8 @@ exports.createOrder = async (req, res) => {
       tax: summary.tax,
       shippingFee: summary.shippingFee,
       discount: summary.discount,
+      discountPercentage: summary.discountPercentage,
+      taxPercentage: summary.taxPercentage,
       totalPrice: summary.total,
       status: "Pending",
       timeline: [{ status: "Pending" }],
@@ -132,15 +151,9 @@ exports.createOrder = async (req, res) => {
     cart.items = [];
     await cart.save();
 
-    // SEND EMAIL
-    await sendEmail(
-      req.user.email,
-      "Order Placed Successfully",
-      `<h3>Thank you for your order!</h3><p>Order ID: <b>${order._id}</b></p>`
-    );
-
-    order.emailNotification.orderPlaced = true;
     await order.save();
+
+    cache.clearProductLists();
 
     res.status(201).json({
       status: true,
@@ -158,7 +171,7 @@ exports.createOrder = async (req, res) => {
 exports.getMyOrders = async (req, res) => {
   try {
     const orders = await Order.find({ user: req.user.id }).populate(
-      "items.product"
+      "items.product",
     );
     res.json({ status: true, orders });
   } catch (err) {
@@ -179,7 +192,8 @@ exports.getAllOrders = async (req, res) => {
 
     const orders = await Order.find()
       .populate("items.product")
-      .populate("user", "name email");
+      .populate("user", "name email phone address")
+      .sort({ createdAt: -1 });
 
     res.json({ status: true, orders });
   } catch (err) {
@@ -192,7 +206,9 @@ exports.getAllOrders = async (req, res) => {
 // ----------------------------------------------------
 exports.getOrderById = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id).populate("items.product");
+    const order = await Order.findById(req.params.id)
+      .populate("items.product")
+      .populate("user", "name email phone address");
 
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -215,17 +231,26 @@ exports.updateOrderStatus = async (req, res) => {
 
     const order = await Order.findById(req.params.id).populate("user");
     if (!order) {
-      return res.status(404).json({ status: false, message: "Order not found" });
+      return res
+        .status(404)
+        .json({ status: false, message: "Order not found" });
     }
 
     const newStatus = req.body.status;
-    
+
     // Validate status
-    const validStatuses = ["Pending", "Confirmed", "Shipped", "Out For Delivery", "Delivered", "Cancelled"];
+    const validStatuses = [
+      "Pending",
+      "Confirmed",
+      "Shipped",
+      "Out For Delivery",
+      "Delivered",
+      "Cancelled",
+    ];
     if (!validStatuses.includes(newStatus)) {
-      return res.status(400).json({ 
-        status: false, 
-        message: `Invalid status. Must be one of: ${validStatuses.join(", ")}` 
+      return res.status(400).json({
+        status: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
       });
     }
 
@@ -256,20 +281,6 @@ exports.updateOrderStatus = async (req, res) => {
 
     await order.save();
 
-    // SEND EMAIL (don't let email failure break the update)
-    if (order.user && order.user.email) {
-      try {
-        await sendEmail(
-          order.user.email,
-          `Order Status Updated`,
-          `<p>Your order <b>${order._id}</b> status is now <b>${newStatus}</b>.</p>`
-        );
-      } catch (emailError) {
-        console.error("Failed to send email notification:", emailError);
-        // Don't fail the request if email fails
-      }
-    }
-
     res.json({
       status: true,
       message: "Order status updated successfully",
@@ -277,9 +288,9 @@ exports.updateOrderStatus = async (req, res) => {
     });
   } catch (err) {
     console.error("Update order status error:", err);
-    res.status(500).json({ 
-      status: false, 
-      message: err.message || "Failed to update order status" 
+    res.status(500).json({
+      status: false,
+      message: err.message || "Failed to update order status",
     });
   }
 };

@@ -10,13 +10,11 @@ function UserTable() {
   const [tempData, setTempData] = useState({});
   const [loading, setLoading] = useState(false);
 
-  const token = localStorage.getItem("authToken");
-
   const fetchUsers = async () => {
     try {
       setLoading(true);
       const res = await fetch(api().getUsers, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
       });
       const data = await res.json();
       setLoading(false);
@@ -45,9 +43,9 @@ function UserTable() {
     try {
       const res = await fetch(api().updateUser(id), {
         method: "PUT",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(tempData),
       });
@@ -66,7 +64,7 @@ function UserTable() {
     try {
       const res = await fetch(api().deleteUser(id), {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Delete failed");

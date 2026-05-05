@@ -9,14 +9,11 @@ function RatingReviews() {
   const [products, setProducts] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [modalProduct, setModalProduct] = useState(null);
-  const token = localStorage.getItem("authToken");
 
   // Fetch all products with reviews
   const fetchProducts = useCallback(async () => {
     try {
-      const res = await axios.get(api().getProducts, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.get(api().getProductsPaged(1, 500));
 
       const productsWithReviews = await Promise.all(
         (res.data?.products || []).map(async (product) => {
@@ -40,7 +37,7 @@ function RatingReviews() {
       console.error(err);
       toast.error(err.response?.data?.message || "Failed to fetch products");
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     fetchProducts();
@@ -57,9 +54,7 @@ function RatingReviews() {
 
       // Delete each review
       for (let review of reviews) {
-        await axios.delete(api().deleteReview(review._id), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await axios.delete(api().deleteReview(review._id));
       }
 
       toast.success("All reviews deleted successfully");

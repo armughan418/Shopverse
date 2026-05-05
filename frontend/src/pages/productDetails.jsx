@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import api from "../utils/api";
 import axios from "axios";
 import { toast } from "react-toastify";
 import StarRating from "../components/StarRating";
+import { useLanguage } from "../utils/LanguageContext";
 
 function ProductDetails() {
   const { id } = useParams();
@@ -13,8 +14,21 @@ function ProductDetails() {
   const [reviewText, setReviewText] = useState("");
   const [rating, setRating] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [selectedImage, setSelectedImage] = useState("");
+  const [selectedMedia, setSelectedMedia] = useState(null);
   const [quantity, setQuantity] = useState(1);
+  const { language, t } = useLanguage();
+
+  const getLocalizedName = (p) =>
+    language === "ur" && p?.nameUrdu ? p.nameUrdu : p?.name;
+  const getLocalizedDescription = (p) =>
+    language === "ur" && p?.descriptionUrdu ? p.descriptionUrdu : p?.description;
+  const getProductMedia = (p) => {
+    if (Array.isArray(p?.media) && p.media.length > 0) {
+      return [...p.media].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    }
+    if (p?.image) return [{ url: p.image, type: "image", sortOrder: 0 }];
+    return [];
+  };
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -22,11 +36,13 @@ function ProductDetails() {
         setLoading(true);
         const res = await axios.get(api().getSingleProduct(id));
         if (res.data?.product) {
-          setProduct(res.data.product);
-          setSelectedImage(res.data.product.image); // default image
+          const incoming = res.data.product;
+          setProduct(incoming);
+          const mediaList = getProductMedia(incoming);
+          setSelectedMedia(mediaList[0] || null);
         }
       } catch (err) {
-        toast.error("Failed to fetch product");
+        toast.error(t("failedToFetchProduct"));
       } finally {
         setLoading(false);
       }
@@ -45,52 +61,52 @@ function ProductDetails() {
       fetchProduct();
       fetchReviews();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch only when id changes; t() for one-time toasts
   }, [id]);
 
   const handleAddToCart = async () => {
     if (quantity < 1) {
-      toast.error("Quantity must be at least 1");
+      toast.error(t("quantityMinOne"));
       return;
     }
     try {
-      const token = localStorage.getItem("authToken");
-      await axios.post(
-        api().addToCart,
-        { productId: product._id, quantity },
-        { headers: { Authorization: `Bearer ${token}` } }
+      await axios.post(api().addToCart, { productId: product._id, quantity });
+      toast.success(
+        t("addedToCartWithCount").replace("{count}", String(quantity)),
       );
-      toast.success(`Added ${quantity} item(s) to cart`);
       // Dispatch event to update cart count in navbar
-      window.dispatchEvent(new Event('cartUpdated'));
+      window.dispatchEvent(new Event("cartUpdated"));
     } catch {
-      toast.error("Failed to add to cart");
+      toast.error(t("failedToAddToCart"));
     }
   };
 
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
     if (!rating || !reviewText.trim()) {
-      toast.error("Please provide a rating and review");
+      toast.error(t("provideRatingReview"));
       return;
     }
 
     setSubmitting(true);
     try {
-      const token = localStorage.getItem("authToken");
       await axios.post(
         `${api().addReview}/${product._id}`,
         { rating, comment: reviewText },
-        { headers: { Authorization: `Bearer ${token}` } }
+        {},
       );
 
-      toast.success("Review submitted");
+      toast.success(t("reviewSubmitted"));
       setReviewText("");
       setRating(0);
 
       const res = await axios.get(api().getReviews(product._id));
       setReviews(res.data.reviews || []);
-    } catch {
-      toast.error("Failed to submit review");
+    } catch (error) {
+      console.error("Review submission error:", error);
+      const errorMessage =
+        error.response?.data?.message || t("failedSubmitReview");
+      toast.error(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -99,14 +115,14 @@ function ProductDetails() {
   if (loading)
     return (
       <div className="p-10 text-center text-orange-500 font-bold">
-        Loading...
+        {t("loading")}
       </div>
     );
 
   if (!product)
     return (
       <div className="p-10 text-center text-red-500 font-semibold">
-        Product not found
+        {t("productNotFound")}
       </div>
     );
 
@@ -118,27 +134,49 @@ function ProductDetails() {
           {/* PRODUCT IMAGES */}
           <div className="md:w-1/2 flex flex-col gap-4">
             <div className="bg-gray-50 rounded-2xl p-4 shadow-inner flex items-center justify-center">
-              <img
-                src={selectedImage}
-                alt={product.name}
-                className="object-contain h-96 w-full rounded-xl"
-              />
+              {selectedMedia?.type === "video" ? (
+                <video
+                  src={selectedMedia?.url}
+                  className="object-contain h-96 w-full rounded-xl"
+                  controls
+                />
+              ) : (
+                <img
+                  src={selectedMedia?.url || product.image}
+                  alt={getLocalizedName(product)}
+                  className="object-contain h-96 w-full rounded-xl"
+                />
+              )}
             </div>
             {/* Thumbnails */}
             <div className="flex gap-3 mt-2 overflow-x-auto">
-              {[product.image].map((img, idx) => (
-                <img
-                  key={idx}
-                  src={img}
-                  alt={`thumb-${idx}`}
-                  className={`h-20 w-20 rounded-lg cursor-pointer border ${
-                    selectedImage === img
-                      ? "border-orange-500"
-                      : "border-gray-300"
-                  }`}
-                  onClick={() => setSelectedImage(img)}
-                />
-              ))}
+              {getProductMedia(product).map((media, idx) =>
+                media.type === "video" ? (
+                  <video
+                    key={`${media.url}-${idx}`}
+                    src={media.url}
+                    className={`h-20 w-20 rounded-lg cursor-pointer border object-cover ${
+                      selectedMedia?.url === media.url
+                        ? "border-orange-500"
+                        : "border-gray-300"
+                    }`}
+                    onClick={() => setSelectedMedia(media)}
+                    muted
+                  />
+                ) : (
+                  <img
+                    key={`${media.url}-${idx}`}
+                    src={media.url}
+                    alt={`thumb-${idx}`}
+                    className={`h-20 w-20 rounded-lg cursor-pointer border object-cover ${
+                      selectedMedia?.url === media.url
+                        ? "border-orange-500"
+                        : "border-gray-300"
+                    }`}
+                    onClick={() => setSelectedMedia(media)}
+                  />
+                ),
+              )}
             </div>
           </div>
 
@@ -146,7 +184,7 @@ function ProductDetails() {
           <div className="md:w-1/2 flex flex-col justify-between">
             <div className="space-y-4">
               <h1 className="text-3xl font-bold text-orange-600">
-                {product.name}
+                {getLocalizedName(product)}
               </h1>
 
               <div className="flex items-center gap-2">
@@ -157,7 +195,7 @@ function ProductDetails() {
               </div>
 
               <p className="text-gray-600 leading-relaxed">
-                {product.description}
+                {getLocalizedDescription(product)}
               </p>
 
               <div className="text-4xl font-extrabold text-orange-600 mt-2 flex items-baseline gap-3">
@@ -181,7 +219,9 @@ function ProductDetails() {
 
               {/* Quantity Selector */}
               <div className="flex items-center gap-4 mt-4">
-                <span className="font-semibold text-orange-600">Quantity:</span>
+                <span className="font-semibold text-orange-600">
+                  {t("quantity")}:
+                </span>
                 <div className="flex items-center border rounded-xl overflow-hidden">
                   <button
                     onClick={() => setQuantity(quantity > 1 ? quantity - 1 : 1)}
@@ -220,11 +260,11 @@ function ProductDetails() {
         {/* REVIEWS SECTION */}
         <div className="bg-white rounded-2xl shadow-lg p-6 md:p-10 border-l-4 border-orange-500 transition space-y-6">
           <h2 className="text-2xl font-bold text-orange-600 mb-4">
-            Ratings & Reviews
+            {t("ratingsAndReviews")}
           </h2>
 
           {reviews.length === 0 ? (
-            <p className="text-gray-500">No reviews yet.</p>
+            <p className="text-gray-500">{t("noReviewsYet")}</p>
           ) : (
             <div className="space-y-6">
               {reviews.map((review) => (
@@ -234,7 +274,7 @@ function ProductDetails() {
                 >
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-orange-500">
-                      {review.user?.name || "User"}
+                      {review.user?.name || t("anonymousUser")}
                     </span>
                     <span className="text-yellow-500">
                       {"★".repeat(review.rating)}
@@ -246,48 +286,67 @@ function ProductDetails() {
             </div>
           )}
 
-          <form
-            onSubmit={handleReviewSubmit}
-            className="mt-6 bg-orange-50 rounded-xl p-6 space-y-4"
-          >
-            <h3 className="font-bold text-lg text-orange-600">
-              Submit Your Review
-            </h3>
+          <div>
+            {localStorage.getItem("user") ? (
+              <form
+                onSubmit={handleReviewSubmit}
+                className="mt-6 bg-orange-50 rounded-xl p-6 space-y-4"
+              >
+                <h3 className="font-bold text-lg text-orange-600">
+                  {t("submitYourReview")}
+                </h3>
 
-            <div className="flex items-center gap-3">
-              <span className="font-semibold text-gray-700">Rating:</span>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  type="button"
-                  key={star}
-                  className={`text-3xl transition ${
-                    star <= rating ? "text-yellow-500" : "text-gray-300"
-                  }`}
-                  onClick={() => setRating(star)}
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold text-gray-700">
+                    {t("ratingLabel")}
+                  </span>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      type="button"
+                      key={star}
+                      className={`text-3xl transition ${
+                        star <= rating ? "text-yellow-500" : "text-gray-300"
+                      }`}
+                      onClick={() => setRating(star)}
+                      disabled={submitting}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-orange-300 outline-none"
+                  rows={3}
+                  placeholder={t("writeReviewPlaceholder")}
                   disabled={submitting}
+                />
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-orange-600 hover:bg-orange-700 text-white py-3 px-8 rounded-2xl shadow-md font-semibold transition disabled:opacity-50"
                 >
-                  ★
+                  {t("submitReview")}
                 </button>
-              ))}
-            </div>
-
-            <textarea
-              value={reviewText}
-              onChange={(e) => setReviewText(e.target.value)}
-              className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-orange-300 outline-none"
-              rows={3}
-              placeholder="Write your review..."
-              disabled={submitting}
-            />
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="bg-orange-600 hover:bg-orange-700 text-white py-3 px-8 rounded-2xl shadow-md font-semibold transition disabled:opacity-50"
-            >
-              Submit Review
-            </button>
-          </form>
+              </form>
+            ) : (
+              <div className="mt-6 bg-orange-50 rounded-xl p-6 text-center">
+                <p className="text-gray-600">
+                  {t("loginToReviewPrefix")}
+                  <Link
+                    to="/login"
+                    className="text-orange-600 font-semibold hover:underline"
+                  >
+                    {t("loginToReviewLink")}
+                  </Link>
+                  {t("loginToReviewSuffix")}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

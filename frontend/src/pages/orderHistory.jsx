@@ -1,266 +1,296 @@
-import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import api from "../utils/api";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { useLanguage } from "../utils/LanguageContext";
 
-function OrderHistory() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    const fetchOrder = async () => {
-      try {
-        setLoading(true);
-        const token = localStorage.getItem("authToken");
-        const res = await axios.get(api().getOrder(id), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setOrder(res.data?.order || res.data);
-      } catch (err) {
-        setError(err.response?.data?.message || "Failed to fetch order");
-        toast.error(err.response?.data?.message || "Failed to fetch order");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const fetchCartAsOrder = async () => {
-      try {
-        setLoading(true);
-        const token = localStorage.getItem("authToken");
-        const res = await axios.get(api().getCart, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const cart = res.data?.cart || res.data || { items: [] };
-        const items = (cart.items || []).map((it) => ({
-          product: it.product,
-          quantity: it.quantity,
-          price: it.product?.price || it.price || 0,
-        }));
-        const subtotal = items.reduce(
-          (s, it) => s + (it.price || 0) * (it.quantity || 1),
-          0
-        );
-        const shippingPrice = 2.0;
-        const taxPrice = 4.0;
-        const totalPrice = subtotal + shippingPrice + taxPrice;
-
-        setOrder({ items, subtotal, shippingPrice, taxPrice, totalPrice });
-      } catch (err) {
-        setError(err.response?.data?.message || "Failed to fetch cart");
-        toast.error(err.response?.data?.message || "Failed to fetch cart");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (id) fetchOrder();
-    else fetchCartAsOrder();
-  }, [id]);
-
-  if (loading)
-    return (
-      <div className="p-8 text-center text-gray-500">Loading order...</div>
-    );
-  if (error || !order)
-    return (
-      <div className="p-8 text-center text-red-500">
-        {error || "Order not found"}
-      </div>
-    );
-
-  const user = order.user || {};
-  const address = order.shippingAddress || {};
-  const items = order.items || [];
-
-  return (
-    <div className="p-6 bg-orange-50 min-h-screen">
-      <div className="max-w-screen-lg mx-auto bg-white p-6 rounded-2xl shadow-xl border border-orange-200">
-        {/* Header */}
-        <div className="pb-5 border-b border-gray-200 flex justify-between items-start flex-col md:flex-row gap-4">
-          <div>
-            <h3 className="text-2xl font-bold text-orange-600">
-              Order Summary
-            </h3>
-            {order._id && (
-              <p className="text-slate-500 text-xs mt-1 font-medium">
-                Order ID:{" "}
-                <span className="text-orange-700 font-bold">{order._id}</span>
-              </p>
-            )}
-          </div>
-          <div className="bg-orange-50 p-4 rounded-xl shadow-sm w-full md:w-auto">
-            <h4 className="text-orange-600 font-semibold mb-1">
-              Customer Info
-            </h4>
-            <p className="text-sm text-slate-700">
-              <span className="font-medium">Name:</span> {user.name || "-"}
-            </p>
-            <p className="text-sm text-slate-700">
-              <span className="font-medium">Email:</span> {user.email || "-"}
-            </p>
-            <p className="text-sm text-slate-700">
-              <span className="font-medium">Phone:</span> {user.phone || "-"}
-            </p>
-            <p className="text-sm text-slate-700 mt-2">
-              <span className="font-medium">Address:</span>{" "}
-              {address.street || address.address || "-"}, {address.city || "-"},{" "}
-              {address.state || "-"}, {address.postalCode || "-"},{" "}
-              {address.country || "-"}
-            </p>
-          </div>
-        </div>
-
-        {/* Order Items */}
-        <div className="divide-y divide-gray-200 mt-6">
-          {items.length === 0 ? (
-            <p className="text-center text-gray-500">No items in this order.</p>
-          ) : (
-            items.map((item, idx) => (
-              <ItemCard
-                key={item._id || idx}
-                img={
-                  item.product?.image ||
-                  item.productImage ||
-                  "https://via.placeholder.com/80"
-                }
-                name={item.product?.name || item.productName || "Product"}
-                size={item.size || "-"}
-                qty={item.quantity || 1}
-                price={`Rs ${(item.price || item.product?.price || 0).toFixed(2)}`}
-                status={order.status || "Processing"}
-              />
-            ))
-          )}
-        </div>
-
-        {/* Price Summary */}
-        <div className="mt-8 pt-4 border-t border-gray-300 max-w-md ml-auto">
-          <div className="flex justify-between text-slate-600 text-sm font-medium py-3">
-            <span>Subtotal</span>
-            <span>
-              Rs {order.subtotal?.toFixed(2) || order.totalPrice?.toFixed(2) || "0.00"}
-            </span>
-          </div>
-          <div className="flex justify-between text-slate-600 text-sm font-medium py-3">
-            <span>Shipping</span>
-            <span>Rs {order.shippingPrice?.toFixed(2) || order.shippingFee?.toFixed(2) || "0.00"}</span>
-          </div>
-          <div className="flex justify-between text-slate-600 text-sm font-medium py-3">
-            <span>Tax</span>
-            <span>Rs {order.taxPrice?.toFixed(2) || order.tax?.toFixed(2) || "0.00"}</span>
-          </div>
-          <div className="flex justify-between text-lg font-bold text-slate-900 py-3">
-            <span>Total</span>
-            <span>Rs {order.totalPrice?.toFixed(2) || "0.00"}</span>
-          </div>
-
-          {!id && (
-            <>
-              <button
-                disabled={!localStorage.getItem("authToken")}
-                onClick={async () => {
-                  try {
-                    const token = localStorage.getItem("authToken");
-                    if (!token) {
-                      toast.error("Please login to place an order");
-                      return;
-                    }
-                    // Get user profile for shipping address
-                    const userRes = await axios.get(api().getUserProfile, {
-                      headers: { Authorization: `Bearer ${token}` },
-                    });
-                    
-                    const user = userRes.data?.user;
-                    if (!user || !user.address || user.address === "Not provided") {
-                      toast.error("Please update your address in profile before placing order");
-                      navigate("/user-profile");
-                      return;
-                    }
-
-                    const res = await axios.post(
-                      api().createOrder,
-                      {
-                        shippingAddress: {
-                          address: user.address,
-                          city: "City",
-                          postalCode: "00000",
-                          country: "Pakistan",
-                        },
-                        paymentMethod: "COD",
-                      },
-                      {
-                        headers: { Authorization: `Bearer ${token}` },
-                      }
-                    );
-                    if (res.status === 201 && res.data && res.data.order && res.data.order._id) {
-                      toast.success("Order placed successfully");
-                      navigate(`/order-summary/${res.data.order._id}`);
-                    } else {
-                      toast.error(res.data?.message || "Failed to place order");
-                    }
-                  } catch (err) {
-                    toast.error(
-                      err.response?.data?.message || "Failed to place order"
-                    );
-                  }
-                }}
-                className={`w-full mt-4 bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl text-center font-semibold shadow-md transition ${
-                  !localStorage.getItem("authToken")
-                    ? "opacity-60 cursor-not-allowed"
-                    : ""
-                }`}
-              >
-                Place Order
-              </button>
-              {!localStorage.getItem("authToken") && (
-                <p className="text-center text-red-500 mt-2 text-sm">
-                  You must be logged in to place an order.
-                </p>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+function getStatusColor(status) {
+  const colors = {
+    Pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    Confirmed: "bg-blue-100 text-blue-800 border-blue-200",
+    Shipped: "bg-purple-100 text-purple-800 border-purple-200",
+    "Out For Delivery": "bg-indigo-100 text-indigo-800 border-indigo-200",
+    Delivered: "bg-green-100 text-green-800 border-green-200",
+    Cancelled: "bg-red-100 text-red-800 border-red-200",
+  };
+  return colors[status] || "bg-gray-100 text-gray-800 border-gray-200";
 }
 
-function ItemCard({ img, name, size, qty, price, status }) {
+function formatMoney(n) {
+  const v = Number(n) || 0;
+  return v.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function OrderHistory() {
+  const { t } = useLanguage();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMyOrders = async () => {
+      try {
+        setLoading(true);
+        const res = await axios.get(api().getMyOrders);
+        if (res.data?.status && Array.isArray(res.data.orders)) {
+          setOrders(res.data.orders);
+        } else {
+          setOrders([]);
+        }
+      } catch (err) {
+        toast.error(
+          err.response?.data?.message || t("failedToLoadOrders"),
+        );
+        setOrders([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMyOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once; t() for toasts only
+  }, []);
+
+  const sortedOrders = useMemo(() => {
+    return [...orders].sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+    );
+  }, [orders]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-orange-50 pt-4 px-4 pb-10">
+        <div className="max-w-5xl mx-auto py-16 text-center text-gray-600">
+          {t("loading")}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-4 max-sm:grid-cols-2 gap-6 py-5 items-start">
-      {/* Image + Details */}
-      <div className="col-span-2 flex items-center gap-5 max-sm:flex-col">
-        <div className="bg-gray-100 p-3 rounded-xl w-24 h-24 shadow-sm">
-          <img src={img} className="w-full h-full object-contain" alt={name} />
+    <div className="min-h-screen bg-orange-50 pt-4 px-3 sm:px-4 pb-10">
+      <div className="max-w-5xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-orange-600">
+            {t("myOrders")}
+          </h1>
+          <p className="text-sm text-gray-600 mt-1">{t("orderHistorySubtitle")}</p>
         </div>
-        <div>
-          <h6 className="text-base font-semibold text-slate-900">{name}</h6>
-          <div className="mt-2 space-y-1">
-            <p className="text-xs text-slate-500 font-medium">
-              Size: <span className="ml-1">{size}</span>
-            </p>
-            <p className="text-xs text-slate-500 font-medium">
-              Qty: <span className="ml-1">{qty}</span>
-            </p>
+
+        {sortedOrders.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-lg border border-orange-100 p-10 text-center text-gray-600">
+            <p className="mb-4">{t("noOrdersYet")}</p>
+            <Link
+              to="/products"
+              className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-orange-600 text-white font-semibold hover:bg-orange-700 transition"
+            >
+              {t("allProducts")}
+            </Link>
           </div>
-        </div>
-      </div>
-      {/* Status */}
-      <div>
-        <h6 className="text-sm font-semibold text-slate-900">Status</h6>
-        <p className="bg-orange-50 text-xs font-medium text-orange-600 mt-2 inline-block rounded-md py-1 px-3 shadow-sm">
-          {status}
-        </p>
-      </div>
-      {/* Price */}
-      <div className="ml-auto">
-        <h6 className="text-sm font-semibold text-slate-900">Price</h6>
-        <p className="text-sm text-slate-900 font-medium mt-2">{price}</p>
+        ) : (
+          <div className="space-y-6">
+            {sortedOrders.map((order, orderIdx) => {
+              const orderIdStr = String(order._id);
+              const shortRef = orderIdStr.slice(-8).toUpperCase();
+              const items = order.items || [];
+              const status = order.status || "Pending";
+              const total = Number(order.totalPrice) || 0;
+
+              return (
+                <article
+                  key={orderIdStr}
+                  className="bg-white rounded-2xl shadow-lg border border-orange-100 overflow-hidden"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between px-4 py-4 bg-gradient-to-r from-orange-50 to-white border-b border-orange-100">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {t("orderSingular")}{" "}
+                        <span className="text-orange-700">#{orderIdx + 1}</span>
+                        <span className="text-gray-500 font-normal">
+                          {" "}
+                          · Ref {shortRef}
+                        </span>
+                      </p>
+                      <p
+                        className="text-xs text-gray-500 font-mono truncate max-w-[260px] sm:max-w-md mt-0.5"
+                        title={orderIdStr}
+                      >
+                        {orderIdStr}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        {new Date(order.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(
+                          status,
+                        )}`}
+                      >
+                        {t("orderStatus")}: {status}
+                      </span>
+                      <span className="text-sm font-bold text-orange-700 whitespace-nowrap">
+                        {t("total")}: Rs {formatMoney(total)}
+                      </span>
+                      <Link
+                        to={`/order-summary/${order._id}`}
+                        className="text-xs sm:text-sm font-semibold text-orange-600 hover:text-orange-800 underline underline-offset-2"
+                      >
+                        {t("viewDetails")}
+                      </Link>
+                    </div>
+                  </div>
+
+                  {items.length === 0 ? (
+                    <p className="p-4 text-center text-gray-500 text-sm">
+                      {t("noItemsInOrder")}
+                    </p>
+                  ) : (
+                    <>
+                      {/* Desktop / tablet: table */}
+                      <div className="hidden sm:block overflow-x-auto">
+                        <table className="w-full min-w-[640px] text-sm">
+                          <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
+                            <tr>
+                              <th className="px-3 py-3 text-left font-semibold w-20">
+                                {t("image")}
+                              </th>
+                              <th className="px-3 py-3 text-left font-semibold">
+                                {t("product")}
+                              </th>
+                              <th className="px-3 py-3 text-right font-semibold whitespace-nowrap">
+                                {t("unitPrice")}
+                              </th>
+                              <th className="px-3 py-3 text-right font-semibold">
+                                {t("qty")}
+                              </th>
+                              <th className="px-3 py-3 text-right font-semibold whitespace-nowrap">
+                                {t("lineTotal")}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {items.map((item, lineIdx) => {
+                              const product = item?.product;
+                              const name =
+                                product?.name ||
+                                (typeof product === "object" && product?.title) ||
+                                t("productUnavailable");
+                              const img =
+                                product?.image ||
+                                "https://via.placeholder.com/80?text=—";
+                              const unit = Number(
+                                item?.price ?? product?.price ?? 0,
+                              );
+                              const qty = Number(item?.quantity ?? 0);
+                              const lineTotal = unit * qty;
+                              const lineKey = `${orderIdStr}-${lineIdx}-${
+                                product?._id || "x"
+                              }`;
+
+                              return (
+                                <tr key={lineKey} className="hover:bg-orange-50/40">
+                                  <td className="px-3 py-3 align-middle">
+                                    <img
+                                      src={img}
+                                      alt={name}
+                                      className="w-14 h-14 object-cover rounded-lg border border-gray-200"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-3 font-medium text-gray-900 align-middle">
+                                    {name}
+                                  </td>
+                                  <td className="px-3 py-3 text-right text-gray-800 align-middle whitespace-nowrap">
+                                    Rs {formatMoney(unit)}
+                                  </td>
+                                  <td className="px-3 py-3 text-right align-middle">
+                                    {qty}
+                                  </td>
+                                  <td className="px-3 py-3 text-right font-semibold text-orange-700 align-middle whitespace-nowrap">
+                                    Rs {formatMoney(lineTotal)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Mobile: stacked cards */}
+                      <ul className="sm:hidden divide-y divide-gray-100">
+                        {items.map((item, lineIdx) => {
+                          const product = item?.product;
+                          const name =
+                            product?.name ||
+                            (typeof product === "object" && product?.title) ||
+                            t("productUnavailable");
+                          const img =
+                            product?.image ||
+                            "https://via.placeholder.com/80?text=—";
+                          const unit = Number(
+                            item?.price ?? product?.price ?? 0,
+                          );
+                          const qty = Number(item?.quantity ?? 0);
+                          const lineTotal = unit * qty;
+                          const lineKey = `${orderIdStr}-m-${lineIdx}-${
+                            product?._id || "x"
+                          }`;
+
+                          return (
+                            <li
+                              key={lineKey}
+                              className="flex gap-3 p-4 items-start"
+                            >
+                              <img
+                                src={img}
+                                alt={name}
+                                className="w-16 h-16 shrink-0 object-cover rounded-lg border border-gray-200"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-gray-900 text-sm leading-snug">
+                                  {name}
+                                </p>
+                                <p className="text-xs text-gray-600 mt-1">
+                                  {t("unitPrice")}: Rs{" "}
+                                  {formatMoney(unit)} × {qty}
+                                </p>
+                                <p className="text-sm font-bold text-orange-700 mt-1">
+                                  {t("lineTotal")}: Rs{" "}
+                                  {formatMoney(lineTotal)}
+                                </p>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </>
+                  )}
+
+                  <div className="px-4 py-3 bg-gray-50 text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1 border-t border-gray-100">
+                    <span>
+                      {t("subtotal")}: Rs{" "}
+                      {formatMoney(order.subtotal)}
+                    </span>
+                    <span>
+                      {t("discount")}: Rs{" "}
+                      {formatMoney(order.discount)}
+                    </span>
+                    <span>
+                      {t("tax")}: Rs {formatMoney(order.tax)}
+                    </span>
+                    <span>
+                      {t("shipping")}: Rs{" "}
+                      {formatMoney(order.shippingFee)}
+                    </span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

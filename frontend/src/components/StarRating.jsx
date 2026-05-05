@@ -3,9 +3,10 @@ import React from "react";
 function StarRating({ rating = 0, size = 16 }) {
   const clamped = Math.max(0, Math.min(5, Number(rating) || 0));
   const percent = (clamped / 5) * 100;
+  const px = typeof size === "number" ? `${size}px` : size;
 
   const stars = Array.from({ length: 5 }).map((_, i) => (
-    <span key={i} style={{ fontSize: "22px", lineHeight: 1 }}>
+    <span key={i} style={{ fontSize: px, lineHeight: 1 }}>
       ★
     </span>
   ));

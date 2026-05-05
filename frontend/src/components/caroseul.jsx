@@ -22,7 +22,7 @@ const Carousel = () => {
     const interval = setInterval(
       () =>
         setCurrent((prev) => (slides.length ? (prev + 1) % slides.length : 0)),
-      4000
+      4000,
     );
     return () => clearInterval(interval);
   }, [slides]);
@@ -36,7 +36,7 @@ const Carousel = () => {
   if (!slides.length) return null;
 
   return (
-    <div className="relative w-full h-[500px] overflow-hidden rounded-xl shadow-lg">
+    <div className="relative w-full h-48 sm:h-64 md:h-96 lg:h-[500px] overflow-hidden rounded-xl shadow-lg">
       {slides.map((slide, index) => (
         <div
           key={slide._id || index}
@@ -55,24 +55,24 @@ const Carousel = () => {
       {/* Arrows */}
       <button
         onClick={prevSlide}
-        className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/40 text-white p-2 rounded-full hover:bg-black/60 transition"
+        className="absolute left-2 sm:left-4 top-1/2 transform -translate-y-1/2 bg-black/40 text-white p-1.5 sm:p-2 rounded-full hover:bg-black/60 transition text-xs sm:text-base"
       >
         &#10094;
       </button>
       <button
         onClick={nextSlide}
-        className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/40 text-white p-2 rounded-full hover:bg-black/60 transition"
+        className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 bg-black/40 text-white p-1.5 sm:p-2 rounded-full hover:bg-black/60 transition text-xs sm:text-base"
       >
         &#10095;
       </button>
 
       {/* Dots */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+      <div className="absolute bottom-2 sm:bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-1.5 sm:space-x-2">
         {slides.map((_, index) => (
           <span
             key={index}
             onClick={() => goToSlide(index)}
-            className={`w-3 h-3 rounded-full cursor-pointer transition ${
+            className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full cursor-pointer transition ${
               index === current ? "bg-white" : "bg-white/50"
             }`}
           ></span>

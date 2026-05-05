@@ -9,14 +9,8 @@ const userSchema = new mongoose.Schema(
     phone: { type: String, required: true },
     address: { type: String, required: true },
     role: { type: String, enum: ["user", "admin"], default: "user" },
-    otp: {
-      otp: { type: String },
-      sendTime: { type: Date },
-      token: { type: String },
-      tokenExpiry: { type: Date },
-    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 userSchema.pre("save", async function (next) {

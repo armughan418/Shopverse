@@ -11,19 +11,11 @@ function AdminRoute() {
     const checkAdminAccess = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem("authToken");
-
-        if (!token) {
-          setIsAdmin(false);
-          setLoading(false);
-          return;
-        }
-
         const response = await fetch(api().getAcess, {
           method: "GET",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
         });
 

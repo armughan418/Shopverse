@@ -8,7 +8,6 @@ import { Trash2, Edit2, Upload } from "lucide-react";
 function CarouselSetting() {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const token = localStorage.getItem("authToken");
 
   const fetchImages = async () => {
     try {
@@ -33,9 +32,7 @@ function CarouselSetting() {
       if (updates.alt !== undefined) fd.append("alt", updates.alt);
       if (updates.order !== undefined) fd.append("order", updates.order);
 
-      const res = await axios.put(api().updateCarouselImage(id), fd, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.put(api().updateCarouselImage(id), fd);
       if (res.data.success) {
         toast.success("Image updated Sucessfully!");
         fetchImages();
@@ -52,9 +49,7 @@ function CarouselSetting() {
     if (!window.confirm("Delete this image?")) return;
     try {
       setLoading(true);
-      const res = await axios.delete(api().deleteCarouselImage(id), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.delete(api().deleteCarouselImage(id));
       if (res.data.success) {
         toast.success("Deleted successfully");
         fetchImages();

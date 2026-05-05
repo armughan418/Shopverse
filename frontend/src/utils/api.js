@@ -1,14 +1,14 @@
 const api = () => {
-  const local = "http://localhost:5000";
+  const local = process.env.REACT_APP_BACKEND_URL;
 
   const list = {
     registerUser: `${local}/api/user/register`,
     loginUser: `${local}/api/user/login`,
-    forgetPassword: `${local}/api/user/forget/password`,
-    verifyOtp: `${local}/api/user/otp/verify`,
-    updatePassword: `${local}/api/user/update/password`,
+    logoutUser: `${local}/api/user/logout`,
     getAcess: `${local}/api/user/get/access`,
     adminStat: `${local}/api/admin/stats`,
+    getOrderCharges: `${local}/api/admin/order-charges`,
+    updateOrderCharges: `${local}/api/admin/order-charges`,
 
     getUsers: `${local}/api/user/`,
     updateUser: (id) => `${local}/api/user/${id}`,
@@ -16,6 +16,21 @@ const api = () => {
 
     addProduct: `${local}/api/products/add`,
     getProducts: `${local}/api/products`,
+    getProductsPaged: (page = 1, limit = 12) =>
+      `${local}/api/products?page=${page}&limit=${limit}`,
+    getHomepageProducts: `${local}/api/products/homepage`,
+    getFeaturedProducts: `${local}/api/products/featured`,
+    getBestsellers: `${local}/api/products/bestsellers`,
+    getNewProducts: `${local}/api/products/new`,
+    getProductsByCategory: (categoryName, page = 1, limit = 12) =>
+      `${local}/api/products/category/${encodeURIComponent(categoryName)}?page=${page}&limit=${limit}`,
+    searchProducts: (q, page = 1, limit = 12, options = {}) => {
+      const { sort = "", minRating = 0 } = options || {};
+      let url = `${local}/api/products/search?q=${encodeURIComponent(q)}&page=${page}&limit=${limit}`;
+      if (sort) url += `&sort=${encodeURIComponent(sort)}`;
+      if (minRating > 0) url += `&minRating=${minRating}`;
+      return url;
+    },
     getSingleProduct: (id) => `${local}/api/products/${id}`,
     updateProduct: (id) => `${local}/api/products/update/${id}`,
     deleteProduct: (id) => `${local}/api/products/delete/${id}`,
@@ -42,10 +57,9 @@ const api = () => {
     addCarouselImage: `${local}/api/carousel/add`,
     updateCarouselImage: (id) => `${local}/api/carousel/update/${id}`,
     deleteCarouselImage: (id) => `${local}/api/carousel/delete/${id}`,
-    // example api() shape (you already have a util)
-    // forgetPassword: "/api/user/forget-password",
-    // verifyOtp: "/api/user/verify-otp",
-    // updatePassword: "/api/user/update-password", // adjust if your route differs
+    getCategories: `${local}/api/categories`,
+    addCategory: `${local}/api/categories/add`,
+    deleteCategory: (id) => `${local}/api/categories/${id}`,
     getUserProfile: `${local}/api/user/profile`,
     updateUserProfile: `${local}/api/user/profile`,
   };

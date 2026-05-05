@@ -2,8 +2,10 @@ import React, { useEffect, useState } from "react";
 import api from "../utils/api";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { useLanguage } from "../utils/LanguageContext";
 
 function Profile() {
+  const { t } = useLanguage();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -17,10 +19,7 @@ function Profile() {
   const fetchUser = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("authToken");
-      const res = await axios.get(api().getUserProfile, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.get(api().getUserProfile);
       if (res.data?.status && res.data?.user) {
         setUser(res.data.user);
         setFormData({
@@ -30,10 +29,10 @@ function Profile() {
           address: res.data.user.address || "",
         });
       } else {
-        toast.error("Failed to fetch user details");
+        toast.error(t("failedFetchUserDetails"));
       }
     } catch {
-      toast.error("Failed to fetch user details");
+      toast.error(t("failedFetchUserDetails"));
     } finally {
       setLoading(false);
     }
@@ -49,26 +48,23 @@ function Profile() {
 
   const handleSave = async () => {
     try {
-      const token = localStorage.getItem("authToken");
-      const res = await axios.put(api().updateUserProfile, formData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.put(api().updateUserProfile, formData);
       if (res.data?.status) {
-        toast.success("Profile updated successfully");
+        toast.success(t("profileUpdatedSuccess"));
         setEditing(false);
         fetchUser();
       } else {
-        toast.error(res.data.message || "Failed to update profile");
+        toast.error(res.data.message || t("failedUpdateProfile"));
       }
     } catch {
-      toast.error("Failed to update profile");
+      toast.error(t("failedUpdateProfile"));
     }
   };
 
   if (loading) {
     return (
       <div className="p-10 text-center text-orange-500 font-bold">
-        Loading...
+        {t("loading")}
       </div>
     );
   }
@@ -76,7 +72,7 @@ function Profile() {
   if (!user) {
     return (
       <div className="p-10 text-center text-red-500 font-semibold">
-        User not found
+        {t("userNotFound")}
       </div>
     );
   }
@@ -97,7 +93,7 @@ function Profile() {
         <div className="mt-8 space-y-4">
           {/* Name */}
           <div className="flex flex-col">
-            <label className="text-gray-600 font-semibold">Name</label>
+            <label className="text-gray-600 font-semibold">{t("nameField")}</label>
             {editing ? (
               <input
                 type="text"
@@ -113,7 +109,7 @@ function Profile() {
 
           {/* Email */}
           <div className="flex flex-col">
-            <label className="text-gray-600 font-semibold">Email</label>
+            <label className="text-gray-600 font-semibold">{t("email")}</label>
             {editing ? (
               <input
                 type="email"
@@ -129,7 +125,7 @@ function Profile() {
 
           {/* Phone */}
           <div className="flex flex-col">
-            <label className="text-gray-600 font-semibold">Phone</label>
+            <label className="text-gray-600 font-semibold">{t("phoneField")}</label>
             {editing ? (
               <input
                 type="text"
@@ -140,14 +136,16 @@ function Profile() {
               />
             ) : (
               <p className="mt-1 text-gray-800">
-                {user.phone || "Not provided"}
+                {user.phone || t("notProvided")}
               </p>
             )}
           </div>
 
           {/* Address */}
           <div className="flex flex-col">
-            <label className="text-gray-600 font-semibold">Address</label>
+            <label className="text-gray-600 font-semibold">
+              {t("addressField")}
+            </label>
             {editing ? (
               <textarea
                 name="address"
@@ -158,7 +156,7 @@ function Profile() {
               />
             ) : (
               <p className="mt-1 text-gray-800">
-                {user.address || "Not provided"}
+                {user.address || t("notProvided")}
               </p>
             )}
           </div>
@@ -172,13 +170,13 @@ function Profile() {
                 onClick={handleSave}
                 className="bg-orange-600 text-white py-2 px-6 rounded-xl font-semibold hover:bg-orange-700 transition"
               >
-                Save
+                {t("save")}
               </button>
               <button
                 onClick={() => setEditing(false)}
                 className="bg-gray-200 text-gray-700 py-2 px-6 rounded-xl font-semibold hover:bg-gray-300 transition"
               >
-                Cancel
+                {t("cancel")}
               </button>
             </>
           ) : (
@@ -186,7 +184,7 @@ function Profile() {
               onClick={() => setEditing(true)}
               className="bg-orange-600 text-white py-2 px-6 rounded-xl font-semibold hover:bg-orange-700 transition"
             >
-              Edit Profile
+              {t("editProfile")}
             </button>
           )}
         </div>

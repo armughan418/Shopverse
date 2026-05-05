@@ -2,11 +2,12 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api";
 import { toast } from "react-toastify";
+import { useLanguage } from "../utils/LanguageContext";
 
 function Login() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
-  const [role, setRole] = useState("user");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,7 +16,7 @@ function Login() {
     e.preventDefault();
 
     if (!email || !password) {
-      toast.warning("Input fields cannot be empty");
+      toast.warning(t("input Fields Cannot Be Empty"));
       return;
     }
 
@@ -24,30 +25,24 @@ function Login() {
 
       const response = await fetch(api().loginUser, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password }),
       });
 
       const result = await response.json();
       setLoading(false);
 
       if (!response.ok) {
-        throw new Error(result.message || "Login failed");
+        throw new Error(result.message || t("loginFailed"));
       }
 
       if (result.status) {
         toast.success(result.message);
 
-        const token =
-          result.token ||
-          result.accessToken ||
-          result.jwt ||
-          result.data?.token ||
-          result.data?.accessToken;
-
-        if (token) {
-          localStorage.setItem("authToken", token);
-        }
+        // Determine user role from response
+        const userRole = result.user?.role || "user";
+        const isAdmin = result.user?.isAdmin || userRole === "admin";
 
         if (result.user) {
           const userData = {
@@ -55,13 +50,14 @@ function Login() {
             email: result.user.email || "",
             phone: result.user.phone || "",
             address: result.user.address || "",
-            role: result.user.role || role,
-            isAdmin: result.user.isAdmin || result.user.role === "admin",
+            role: userRole,
+            isAdmin: isAdmin,
           };
           localStorage.setItem("user", JSON.stringify(userData));
         }
 
-        if (role === "admin") {
+        // Redirect based on user role
+        if (isAdmin) {
           navigate("/admin-dashboard");
         } else {
           navigate("/");
@@ -70,7 +66,7 @@ function Login() {
     } catch (error) {
       setLoading(false);
       console.error("Login Error:", error);
-      toast.error(error.message || "Server error, please try again.");
+      toast.error(error.message || t("serverErrorTryAgain"));
     }
 
     setEmail("");
@@ -82,35 +78,20 @@ function Login() {
       <div className="w-full max-w-md bg-white shadow-2xl rounded-3xl p-8 border border-orange-200">
         {/* Header */}
         <h2 className="text-3xl font-extrabold text-orange-700 text-center mb-6">
-          Welcome Back
+          {t("welcomeBack")}
         </h2>
         <p className="text-center text-slate-600 mb-8">
-          Login to continue to your dashboard
+          {t("loginToDashboard")}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-slate-700 font-medium mb-1">
-              Select Role
-            </label>
-            <select
-              className="w-full px-4 py-3 rounded-xl bg-orange-50 border border-orange-200 text-slate-800 
-              focus:outline-none focus:ring-2 focus:ring-orange-400 transition shadow-sm"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-            >
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-slate-700 font-medium mb-1">
-              Email Address
+              {t("emailAddress")}
             </label>
             <input
               type="email"
-              placeholder="Enter your email"
+              placeholder={t("enterEmail")}
               className="w-full px-4 py-3 rounded-xl bg-orange-50 border border-orange-200 text-slate-800 
               placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-400 
               transition shadow-sm"
@@ -121,11 +102,11 @@ function Login() {
 
           <div>
             <label className="block text-slate-700 font-medium mb-1">
-              Password
+              {t("password")}
             </label>
             <input
               type="password"
-              placeholder="Enter your password"
+              placeholder={t("enterPassword")}
               className="w-full px-4 py-3 rounded-xl bg-orange-50 border border-orange-200 text-slate-800 
               placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-400 
               transition shadow-sm"
@@ -140,7 +121,7 @@ function Login() {
             shadow-lg hover:bg-orange-700 hover:shadow-xl transition-transform duration-200 
             hover:scale-[1.02]"
           >
-            {loading ? "Loading..." : "Login"}
+            {loading ? t("loading") : t("login")}
           </button>
 
           <div className="flex justify-between pt-2 text-sm">
@@ -149,14 +130,7 @@ function Login() {
               className="text-orange-600 hover:text-orange-700 font-medium transition"
               onClick={() => navigate("/signup")}
             >
-              Create Account
-            </button>
-            <button
-              type="button"
-              className="text-orange-600 hover:text-orange-700 font-medium transition"
-              onClick={() => navigate("/forget-password")}
-            >
-              Forgot Password?
+              {t("createAccount")}
             </button>
           </div>
         </form>

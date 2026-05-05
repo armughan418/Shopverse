@@ -1,9 +1,6 @@
 const express = require("express");
 const { register } = require("../controllers/register");
 const login = require("../controllers/login");
-const forgetPassword = require("../controllers/forgetPassword");
-const verifyOtp = require("../controllers/verifyOtp");
-const updatePassword = require("../controllers/updatePassword");
 const getAcess = require("../controllers/getAcess");
 const authMiddleware = require("../middlewares/authMiddleware");
 const adminMiddleware = require("../middlewares/adminMiddleware");
@@ -13,9 +10,14 @@ const router = express.Router();
 
 router.post("/register", register);
 router.post("/login", login);
-router.post("/forget/password", forgetPassword);
-router.post("/otp/verify", verifyOtp);
-router.patch("/update/password", updatePassword);
+router.post("/logout", (req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+  return res.status(200).json({ status: true, message: "Logged out" });
+});
 router.get("/get/access", getAcess);
 
 router.get("/profile", authMiddleware, async (req, res) => {
@@ -38,7 +40,7 @@ router.put("/profile", authMiddleware, async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.user.id,
       { name, email, phone, address },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     ).select("-password");
     res.json({ status: true, user, message: "Profile updated successfully" });
   } catch (error) {
@@ -52,7 +54,7 @@ router.post(
   adminMiddleware,
   (req, res) => {
     res.json({ message: "Product added successfully by admin" });
-  }
+  },
 );
 
 router.get("/", authMiddleware, adminMiddleware, userController.getAllUsers);
@@ -61,7 +63,7 @@ router.delete(
   "/:id",
   authMiddleware,
   adminMiddleware,
-  userController.deleteUser
+  userController.deleteUser,
 );
 
 module.exports = router;

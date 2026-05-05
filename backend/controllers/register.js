@@ -8,7 +8,7 @@ const register = async (req, res) => {
   if (error) return res.status(400).json({ message: error.details[0].message });
 
   try {
-    const formattedEmail = email.toLowerCase();
+    const formattedEmail = email.trim().toLowerCase();
     const existingUser = await User.findOne({ email: formattedEmail });
     if (existingUser)
       return res.status(400).json({ message: "User already exists" });
@@ -31,14 +31,13 @@ const register = async (req, res) => {
       address: user.address,
       role: user.role,
     };
-    res
-      .status(201)
-      .json({
-        message: "User registered successfully",
-        user: userResponse,
-        status: true,
-      });
+    res.status(201).json({
+      message: "User registered successfully",
+      user: userResponse,
+      status: true,
+    });
   } catch (error) {
+    console.error("[Register] Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
